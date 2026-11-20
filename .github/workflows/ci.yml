@@ -41,13 +41,33 @@ jobs:
       - name: Test
         run: pytest -q -rs
 
+  # Secrets in this event's commits: gitleaks (anything shaped like a secret) and trufflehog (keys that still
+  # work), from kilotronic/secret-scan.
+  secret-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: kilotronic/secret-scan@006556b813fd5054d7da8575d3928c5ad3583535 # v1.1.0
+
+  # Shell scripts (shellcheck), workflows (actionlint), and actions and base images pinned by commit and
+  # digest, from kilotronic/lint.
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: kilotronic/lint@50d58c6fc3916432a60d6caf5914d5bb83a60a16 # v1.1.0
+
   git-identity:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: kilotronic/git-identity@b6421bb552b894040019ae43cc10fcc69ce9b756 # v2.1.0
+      - uses: kilotronic/git-identity@76223f8d531904185d4bd46f66c65849cf0133f7 # v2.2.0
         with:
           domains: ixid.net, kilotronic.com
 
@@ -113,7 +133,7 @@ jobs:
   ci:
     name: ci
     runs-on: ubuntu-latest
-    needs: [test, git-identity, dogfood, dogfood-refuses, data-leak-check]
+    needs: [test, git-identity, secret-scan, lint, dogfood, dogfood-refuses, data-leak-check]
     if: always()
     steps:
       - name: Verify required jobs succeeded
