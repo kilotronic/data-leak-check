@@ -276,3 +276,68 @@ def test_an_invalid_denylist_is_an_error(repo: Repo) -> None:
     result = repo.check("--staged", env={"DATA_LEAK_DENYLIST": "re:("})
     assert result.returncode == 2
     assert "entry 1" in result.stderr
+
+
+# --- allow: an exact author or committer name or email that is allowed although an entry matches it
+
+ALLOWED = DENYLIST + "\nallow:ada@globex.example.org"
+
+
+@pytest.fixture
+def allowing(listed: Repo, home: Path) -> Repo:
+    (home / ".config" / "data-leak-check" / "denylist").write_text(ALLOWED)
+    return listed
+
+
+def test_an_allowed_author_email_passes(allowing: Repo) -> None:
+    base = allowing.git("rev-parse", "HEAD")
+    allowing.commit("clean", {"c.txt": "fine\n"}, email="ada@globex.example.org")
+    result = allowing.check("--commits", f"{base}..HEAD")
+    assert result.returncode == 0, result.stderr
+
+
+def test_an_allowed_identity_passes_the_staged_check(allowing: Repo) -> None:
+    allowing.write("c.txt", "fine\n")
+    allowing.git("add", "c.txt")
+    env = {"GIT_AUTHOR_EMAIL": "ADA@Globex.example.org", "GIT_COMMITTER_EMAIL": "ada@globex.example.org"}
+    result = allowing.check("--staged", env=env)
+    assert result.returncode == 0, result.stderr
+
+
+def test_the_allowed_address_in_file_content_still_fails(allowing: Repo) -> None:
+    base = allowing.git("rev-parse", "HEAD")
+    sha = allowing.commit("clean", {"c.txt": "mail ada@globex.example.org\n"}, email="ada@globex.example.org")
+    result = allowing.check("--commits", f"{base}..HEAD")
+    assert result.returncode == 1
+    assert f"commit {sha[:12]}: c.txt:1: added line matches entry 2" in result.stderr
+    assert "author email" not in result.stderr
+
+
+def test_the_allowed_address_in_a_commit_message_still_fails(allowing: Repo) -> None:
+    base = allowing.git("rev-parse", "HEAD")
+    sha = allowing.commit("Thanks ada@globex.example.org", email="ada@globex.example.org")
+    result = allowing.check("--commits", f"{base}..HEAD")
+    assert result.returncode == 1
+    assert f"commit {sha[:12]}: message line 1 matches entry 2" in result.stderr
+    msg = allowing.path / "MSG"
+    msg.write_text("Thanks ada@globex.example.org\n")
+    assert allowing.check("--commit-msg", str(msg)).returncode == 1
+
+
+@pytest.mark.parametrize("email", ["bob@globex.example.org", "xada@globex.example.org", "ada@globex.example.org.evil"])
+def test_a_different_address_at_the_domain_still_fails(allowing: Repo, email: str) -> None:
+    base = allowing.git("rev-parse", "HEAD")
+    allowing.commit("clean", {"c.txt": "fine\n"}, email=email)
+    result = allowing.check("--commits", f"{base}..HEAD")
+    assert result.returncode == 1
+    assert "author email matches entry 2" in result.stderr
+    assert "committer email matches entry 2" in result.stderr
+
+
+def test_an_allowed_email_does_not_allow_a_name_that_matches(allowing: Repo) -> None:
+    base = allowing.git("rev-parse", "HEAD")
+    allowing.commit("clean", name="Globex Ada", email="ada@globex.example.org")
+    result = allowing.check("--commits", f"{base}..HEAD")
+    assert result.returncode == 1
+    assert "author name matches entry 2" in result.stderr
+    assert "author email" not in result.stderr

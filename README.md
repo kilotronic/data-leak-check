@@ -22,14 +22,21 @@ Wile E. Coyote
 roadrunner-infra
 re:\bacme\b
 re:[a-z0-9]{20,}\.internal\.example\.net
+allow:wile@acme-corp.example.com
 ```
 
 - **Plain terms** match case-insensitively, anywhere in the text: `acme-corp` matches `ACME-Corp`.
 - **`re:`** makes the rest of the line a Python regular expression, also case-insensitive. Because it runs to
   the end of the line, a regex may contain commas; put it last on its line or on a line of its own.
+- **`allow:`** names one author or committer name or email that passes although an entry matches it, such as
+  the address a maintainer commits with. It applies only when it is the **whole** name or email (ignoring
+  case): `wile@acme-corp.example.com` as a commit's author passes, but `acme-corp` is still refused in file
+  content, in commit messages and in any other address, `coyote@acme-corp.example.com` or
+  `x.wile@acme-corp.example.com`. Like `re:`, it runs to the end of the line. A list of only `allow:` entries
+  counts as empty.
 - Terms are separated by **newlines or commas**. Only lines that start with `#` are comments: a `#` after a
   term is part of the term, so keep comments on their own lines.
-- Entries are **numbered from 1** in this order; findings name them by number.
+- Entries are **numbered from 1** in this order, `allow:` entries included; findings name them by number.
 
 Keep the list **out of the public repository**: a list of what must not be published is itself private.
 
@@ -64,7 +71,7 @@ jobs:
       - uses: actions/checkout@<sha> # pin actions by full commit SHA
         with:
           persist-credentials: false
-      - uses: kilotronic/data-leak-check@<sha> # v1.0.0
+      - uses: kilotronic/data-leak-check@<sha> # v1.1.0
         with:
           denylist: ${{ secrets.DATA_LEAK_DENYLIST }}
 ```
@@ -102,7 +109,7 @@ a repository was not given, cannot quietly pass. Two kinds of runs never get Act
 To let those pass unchecked rather than fail, set `if-empty: skip`. A typical split:
 
 ```yaml
-      - uses: kilotronic/data-leak-check@<sha> # v1.0.0
+      - uses: kilotronic/data-leak-check@<sha> # v1.1.0
         with:
           denylist: ${{ secrets.DATA_LEAK_DENYLIST }}
           # Fail if the secret is missing on our own branches; let forks and Dependabot through.
@@ -132,7 +139,7 @@ hook per stage:
 default_install_hook_types: [pre-commit, commit-msg, pre-push]
 repos:
   - repo: https://github.com/kilotronic/data-leak-check
-    rev: v1.0.0 # a dotted release tag, not the floating Action tag (v1)
+    rev: v1.1.0 # a dotted release tag, not the floating Action tag (v1)
     hooks:
       - id: data-leak-check            # pre-commit: staged changes and the commit's identity
       - id: data-leak-check-commit-msg # commit-msg: the message
@@ -161,7 +168,7 @@ with `--no-verify`. With no runner refs, it checks every commit no remote has ye
 ## Use as a CLI
 
 ```bash
-pip install git+https://github.com/kilotronic/data-leak-check.git@v1.0.0
+pip install git+https://github.com/kilotronic/data-leak-check.git@v1.1.0
 data-leak-check                        # the staged changes (same as --staged)
 data-leak-check --commits main..HEAD   # every commit in a range: authors, messages, content
 data-leak-check --commit-msg .git/COMMIT_EDITMSG

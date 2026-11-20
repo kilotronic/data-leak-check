@@ -149,3 +149,31 @@ def test_a_missing_flag_file_is_empty_not_an_error(tmp_path: Path) -> None:
     entries, source = load_denylist(str(tmp_path / "absent"), {"HOME": str(tmp_path)})
     assert entries == []
     assert source is None
+
+
+# --- allow: entries
+
+
+def test_allow_entries_are_read_but_never_match() -> None:
+    entries = parse_denylist("example.com\nallow:ada@example.com")
+    assert [(e.number, e.source, e.allow) for e in entries] == [
+        (1, "example.com", False),
+        (2, "allow:ada@example.com", True),
+    ]
+    assert [e.number for e, _ in matches("ada@example.com", entries)] == [1]
+
+
+def test_an_allow_entry_runs_to_the_end_of_its_line() -> None:
+    assert terms("alpha, allow:Ada Example, Ltd\nbeta") == ["alpha", "allow:Ada Example, Ltd", "beta"]
+
+
+def test_an_empty_allow_entry_is_refused() -> None:
+    with pytest.raises(DenylistError, match="entry 2"):
+        parse_denylist("alpha\nallow:  ")
+
+
+def test_a_list_of_only_allow_entries_is_empty(tmp_path: Path) -> None:
+    env = {"DATA_LEAK_DENYLIST": "allow:ada@example.com", "HOME": str(tmp_path)}
+    entries, source = load_denylist(None, env)
+    assert entries == []
+    assert source is None

@@ -23,9 +23,12 @@ What it checks, by mode:
 
 The denylist is a list of terms, one per line or separated by commas. Plain terms match case-insensitively
 anywhere; ``re:`` makes the rest of the line a regular expression (also case-insensitive). Lines starting
-with ``#`` and blank lines are ignored. It is read from the first of: ``--denylist-file``, the
-``DATA_LEAK_DENYLIST`` environment variable (the terms themselves), the ``DATA_LEAK_DENYLIST_FILE``
-environment variable (a path), and ``~/.config/data-leak-check/denylist``. Keep it out of the repository.
+with ``#`` and blank lines are ignored. ``allow:`` makes the rest of the line an author or committer name or
+email that passes although an entry matches it, when it is the whole value (ignoring case). It allows nothing
+else: the same text in a file, a message or a longer address is still refused. The list is read from the
+first of: ``--denylist-file``, the ``DATA_LEAK_DENYLIST`` environment variable (the terms themselves), the
+``DATA_LEAK_DENYLIST_FILE`` environment variable (a path), and ``~/.config/data-leak-check/denylist``. Keep
+it out of the repository.
 
 Findings never show the term or the matched text, because the log may itself be public: they name the
 place and the denylist entry by its position ("entry 3"). ``--show-matches`` adds both, for private use.
@@ -67,6 +70,7 @@ class Entry:
     number: int  # 1-based position in the list: what findings print
     source: str  # the entry as written; printed only with --show-matches
     pattern: re.Pattern[str]
+    allow: bool = False  # an ``allow:`` entry: an exact identity to let through, never a match itself
 
 
 # --- The denylist
@@ -79,7 +83,8 @@ def _split_terms(text: str) -> list[str]:
         if not line or line.startswith("#"):
             continue
         while line:
-            if line.startswith("re:"):  # a regex runs to the end of the line: it may hold commas
+            # A regex or an allowed value runs to the end of the line: it may hold commas.
+            if line.startswith(("re:", "allow:")):
                 terms.append(line)
                 break
             head, _, line = line.partition(",")
@@ -92,6 +97,12 @@ def _split_terms(text: str) -> list[str]:
 def parse_denylist(text: str) -> list[Entry]:
     entries = []
     for number, term in enumerate(_split_terms(text), 1):
+        if term.startswith("allow:"):
+            value = term[6:].strip()
+            if not value:
+                raise DenylistError(f"entry {number} allows nothing")
+            entries.append(Entry(number, term, re.compile(re.escape(value), re.IGNORECASE), allow=True))
+            continue
         if term.startswith("re:"):
             expr = term[3:].strip()
             try:
@@ -136,7 +147,7 @@ def load_denylist(
                 continue
             text = path.read_text(encoding="utf-8", errors="replace")
         entries = parse_denylist(text or "")
-        if entries:
+        if any(not e.allow for e in entries):  # allow: entries alone check nothing
             return entries, label
     return [], None
 
@@ -150,6 +161,8 @@ def matches(text: str, entries: Sequence[Entry]) -> list[tuple[Entry, str]]:
     """The entries that match ``text``, each with the text it matched."""
     found = []
     for entry in entries:
+        if entry.allow:
+            continue
         m = entry.pattern.search(text)
         if m:
             found.append((entry, m.group(0)))
@@ -171,6 +184,16 @@ class Report:
         if not hits or self.show:
             return path
         return f"[a path that matches {self._which(hits)}]"
+
+    def allowed(self, value: str) -> bool:
+        """``value`` is exactly an ``allow:`` entry (ignoring case and surrounding spaces)."""
+        value = value.strip().casefold()
+        return any(e.allow and e.source[6:].strip().casefold() == value for e in self.entries)
+
+    def check_identity(self, where: str, what: str, value: str) -> None:
+        """An author or committer name or email: the one place ``allow:`` entries apply."""
+        if not self.allowed(value):
+            self.check(where, what, value)
 
     def check(self, where: str, what: str, text: str) -> None:
         hits = matches(text, self.entries)
@@ -296,8 +319,8 @@ def check_staged(report: Report) -> str:
             name, email = _identity(kind)
         except GitError:
             continue  # no identity configured: git itself will refuse the commit
-        report.check("this commit's ", f"{kind.lower()} name", name)
-        report.check("this commit's ", f"{kind.lower()} email", email)
+        report.check_identity("this commit's ", f"{kind.lower()} name", name)
+        report.check_identity("this commit's ", f"{kind.lower()} email", email)
     return "the staged changes"
 
 
@@ -321,10 +344,10 @@ def check_commits(report: Report, revs: Sequence[str]) -> str:
         sha, an, ae, cn, ce, body = record.split("\x00", 5)
         shas.append(sha)
         where = f"commit {sha[:SHA_LEN]}: "
-        report.check(where, "author name", an)
-        report.check(where, "author email", ae)
-        report.check(where, "committer name", cn)
-        report.check(where, "committer email", ce)
+        report.check_identity(where, "author name", an)
+        report.check_identity(where, "author email", ae)
+        report.check_identity(where, "committer name", cn)
+        report.check_identity(where, "committer email", ce)
         check_message(report, body, where)
     # Each commit's own diff (merges show none), so content added and removed again in the range counts.
     patches = _git("log", "--no-merges", "-p", "--format=%x00%H", *DIFF_OPTS, *revs, "--")
@@ -421,7 +444,7 @@ def main(argv: Sequence[str] | None = None, *, environ: Mapping[str, str] | None
         return 2
 
     if not report.findings:
-        print(f"data-leak-check: {what}: nothing on the denylist ({len(entries)} entries)")
+        print(f"data-leak-check: {what}: nothing on the denylist ({sum(not e.allow for e in entries)} entries)")
         return 0
     _say("error", f"{len(report.findings)} finding(s) in {what}")
     for item in report.findings:
