@@ -244,6 +244,27 @@ def test_pre_push_without_refs_checks_what_no_remote_has(listed: Repo, tmp_path:
     assert listed.check("--pre-push").returncode == 1
 
 
+def test_pre_push_checks_every_commit_in_the_runner_refs_not_only_the_tip(listed: Repo) -> None:
+    base = listed.git("rev-parse", "HEAD")
+    listed.commit("leak", {"x.txt": "globex\n"})
+    head = listed.commit("tidy", {"x.txt": "fine\n"})
+    result = listed.check("--pre-push", env={"PRE_COMMIT_FROM_REF": base, "PRE_COMMIT_TO_REF": head})
+    assert result.returncode == 1
+    assert "x.txt:1: added line matches entry 2" in result.stderr
+
+
+def test_pre_push_of_a_new_branch_checks_every_commit_no_remote_has(listed: Repo, tmp_path: Path) -> None:
+    remote = tmp_path / "remote.git"
+    listed.git("init", "-q", "--bare", str(remote))
+    listed.git("remote", "add", "origin", str(remote))
+    listed.git("push", "-q", "origin", "main")
+    listed.commit("leak", {"x.txt": "globex\n"})
+    listed.commit("tidy", {"x.txt": "fine\n"})
+    result = listed.check("--pre-push")
+    assert result.returncode == 1
+    assert "2 commit(s)" in result.stderr
+
+
 # --- A missing denylist: the hook warns and passes unless told otherwise
 
 

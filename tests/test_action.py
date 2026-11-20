@@ -34,7 +34,14 @@ class Origin:
         self.clean = r.commit("clean change", {"a.txt": "fine\n"})
         self.leak = r.commit("more", {"b.txt": "notes for globex\n"})
         r.git("push", "-q", "origin", "feature")
+        self.seed = r
         self.tmp = tmp_path
+
+    def add_commit(self, message: str, files: dict[str, str]) -> str:
+        """Another commit on the feature branch, pushed."""
+        sha = self.seed.commit(message, files)
+        self.seed.git("push", "-q", "origin", "feature")
+        return sha
 
     def checkout(self, sha: str) -> Path:
         """What actions/checkout leaves: a depth-1 clone of one commit."""
@@ -82,6 +89,20 @@ def test_pull_request_with_a_leak_fails(origin: Origin) -> None:
     assert result.returncode == 1, result.stdout + result.stderr
     assert "b.txt:1: added line matches entry 1" in result.stderr
     assert "globex" not in (result.stdout + result.stderr).lower()
+
+
+def test_pull_request_checks_every_commit_not_only_its_head(origin: Origin) -> None:
+    tidy = origin.add_commit("tidy", {"b.txt": "fine\n"})
+    result = origin.run(tidy, EVENT="pull_request", PR_BASE=origin.base, PR_HEAD=tidy)
+    assert result.returncode == 1, result.stdout + result.stderr
+    assert "b.txt:1: added line matches entry 1" in result.stderr
+
+
+def test_other_events_check_the_checked_out_commit(origin: Origin) -> None:
+    result = origin.run(origin.leak, EVENT="workflow_dispatch")
+    assert result.returncode == 1, result.stdout + result.stderr
+    assert "1 commit(s)" in result.stderr
+    assert origin.run(origin.clean, EVENT="schedule").returncode == 0
 
 
 def test_pull_request_without_a_leak_passes(origin: Origin) -> None:
