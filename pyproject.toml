@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "kilotronic-data-leak-check"
-version = "1.0.0"
+version = "1.1.0"
 description = "Pre-commit / prek hook & GitHub Action: refuse a denylist of private terms in a public repo's changes, commit messages and commit authors."
 readme = "README.md"
 requires-python = ">=3.11"
