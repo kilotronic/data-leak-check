@@ -1,0 +1,53 @@
+name: Data Leak Check
+description: Refuse a denylist of private terms in the changes, commit messages and commit authors a pull request or push brings in.
+branding:
+  icon: shield
+  color: gray-dark
+
+inputs:
+  denylist:
+    description: >-
+      The terms that must not appear, one per line or separated by commas. Plain terms match case-insensitively
+      anywhere; `re:` makes the rest of the line a regular expression; lines starting with `#` are comments.
+      Feed it from a secret (`secrets.DATA_LEAK_DENYLIST`), which GitHub masks in logs, rather than a
+      variable, which GitHub prints in the log of this step: on a public repository that log is public.
+    required: false
+    default: ""
+  if-empty:
+    description: >-
+      What to do when the denylist is empty or missing: `fail` (default; a missing secret must not pass
+      silently) or `skip`. GitHub does not give Actions secrets to Dependabot or to pull requests from forks.
+    required: false
+    default: fail
+  show-matches:
+    description: >-
+      `true` prints each matching denylist entry and the matched text. Leave it off on public repositories:
+      the log is public. Off by default, findings name only the place and the entry's position ("entry 3").
+    required: false
+    default: "false"
+  commits:
+    description: >-
+      What to check. Empty (default) = the commits this event brings in: a pull request's commits, or a push's
+      new commits (for a new branch, everything the default branch lacks). A git range (e.g. "main..HEAD")
+      checks those commits instead.
+    required: false
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    - name: Check for private data
+      shell: bash
+      env:
+        DENYLIST: ${{ inputs.denylist }}
+        IF_EMPTY: ${{ inputs.if-empty }}
+        SHOW_MATCHES: ${{ inputs.show-matches }}
+        COMMITS: ${{ inputs.commits }}
+        EVENT: ${{ github.event_name }}
+        REF: ${{ github.ref }}
+        DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        PR_BASE: ${{ github.event.pull_request.base.sha }}
+        PR_HEAD: ${{ github.event.pull_request.head.sha }}
+        PUSH_BEFORE: ${{ github.event.before }}
+        PUSH_AFTER: ${{ github.event.after }}
+      run: bash "$GITHUB_ACTION_PATH/src/data_leak_check/action.sh"

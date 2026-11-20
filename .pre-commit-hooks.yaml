@@ -1,0 +1,26 @@
+# Three hooks, one per git stage. Install the stages you use, e.g. `prek install -t pre-commit -t commit-msg
+# -t pre-push`, or set `default_install_hook_types` in your config. The denylist comes from outside the
+# repository: --denylist-file, $DATA_LEAK_DENYLIST, $DATA_LEAK_DENYLIST_FILE or ~/.config/data-leak-check/denylist.
+- id: data-leak-check
+  name: No private data in the staged changes
+  description: Refuse denylisted terms in staged added lines, new file paths, and the commit's author and committer.
+  entry: data-leak-check --staged
+  language: python
+  stages: [pre-commit]
+  always_run: true
+  pass_filenames: false
+- id: data-leak-check-commit-msg
+  name: No private data in the commit message
+  description: Refuse denylisted terms in the commit message.
+  entry: data-leak-check --commit-msg
+  language: python
+  stages: [commit-msg]
+  always_run: true
+- id: data-leak-check-pre-push
+  name: No private data in the commits being pushed
+  description: Refuse denylisted terms in the pushed commits' added lines, paths, messages, authors and committers.
+  entry: data-leak-check --pre-push
+  language: python
+  stages: [pre-push]
+  always_run: true
+  pass_filenames: false
