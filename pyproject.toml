@@ -1,0 +1,41 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "kilotronic-data-leak-check"
+version = "1.0.0"
+description = "Pre-commit / prek hook & GitHub Action: refuse a denylist of private terms in a public repo's changes, commit messages and commit authors."
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "Kilotronic LLC" }]
+keywords = ["git", "pre-commit", "prek", "denylist", "data leak", "privacy"]
+classifiers = [
+  "Development Status :: 5 - Production/Stable",
+  "Intended Audience :: Developers",
+  "Programming Language :: Python :: 3",
+  "Topic :: Software Development :: Quality Assurance",
+]
+dependencies = []
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0", "ruff>=0.6"]
+
+[project.scripts]
+data-leak-check = "data_leak_check.check:main"
+
+[project.urls]
+Homepage = "https://github.com/kilotronic/data-leak-check"
+Issues = "https://github.com/kilotronic/data-leak-check/issues"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/data_leak_check"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src", "tests"]
+
+[tool.ruff]
+line-length = 120
