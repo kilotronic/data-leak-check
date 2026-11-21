@@ -42,12 +42,12 @@ Keep the list **out of the public repository**: a list of what must not be publi
 
 ## What it checks
 
-| Where | Pre-commit hook | Commit-msg hook | Pre-push hook and Action |
-| --- | --- | --- | --- |
-| Added lines (with their line numbers) | staged changes | | each commit's own diff |
-| New and renamed file paths | staged changes | | each commit's own diff |
-| Commit message | | the message being written | every commit |
-| Author and committer names and emails | the identity git will stamp | | every commit |
+| Where                                 | Pre-commit hook             | Commit-msg hook           | Pre-push hook and Action |
+| ------------------------------------- | --------------------------- | ------------------------- | ------------------------ |
+| Added lines (with their line numbers) | staged changes              |                           | each commit's own diff   |
+| New and renamed file paths            | staged changes              |                           | each commit's own diff   |
+| Commit message                        |                             | the message being written | every commit             |
+| Author and committer names and emails | the identity git will stamp |                           | every commit             |
 
 Each commit is checked on its own, so text added in one commit and removed in a later one is still refused:
 both commits would publish it. Removed lines, unchanged lines and binary files are not checked, and nor is the
@@ -85,13 +85,13 @@ is fine.
 `DATA_LEAK_DENYLIST` and pass it in:
 
 ```yaml
-        with:
-          denylist: ${{ secrets.DATA_LEAK_DENYLIST }}   # preferred for public repositories
+with:
+  denylist: ${{ secrets.DATA_LEAK_DENYLIST }} # preferred for public repositories
 ```
 
 ```yaml
-        with:
-          denylist: ${{ vars.DATA_LEAK_DENYLIST }}      # private repositories only
+with:
+  denylist: ${{ vars.DATA_LEAK_DENYLIST }} # private repositories only
 ```
 
 **Prefer a secret for public repositories.** GitHub masks a secret's value in the log. It does not mask a
@@ -109,23 +109,23 @@ a repository was not given, cannot quietly pass. Two kinds of runs never get Act
 To let those pass unchecked rather than fail, set `if-empty: skip`. A typical split:
 
 ```yaml
-      - uses: kilotronic/data-leak-check@<sha> # v1.1.0
-        with:
-          denylist: ${{ secrets.DATA_LEAK_DENYLIST }}
-          # Fail if the secret is missing on our own branches; let forks and Dependabot through.
-          if-empty: ${{ (github.event.pull_request.head.repo.fork || github.actor == 'dependabot[bot]') && 'skip' || 'fail' }}
+- uses: kilotronic/data-leak-check@<sha> # v1.1.0
+  with:
+    denylist: ${{ secrets.DATA_LEAK_DENYLIST }}
+    # Fail if the secret is missing on our own branches; let forks and Dependabot through.
+    if-empty: ${{ (github.event.pull_request.head.repo.fork || github.actor == 'dependabot[bot]') && 'skip' || 'fail' }}
 ```
 
 Then run the hooks locally, or check the merged commits on `push` to main, where the secret is present.
 
 Inputs:
 
-| Input | Default | Meaning |
-| --- | --- | --- |
-| `denylist` | empty | The terms (see above), usually `${{ secrets.DATA_LEAK_DENYLIST }}` |
-| `if-empty` | `fail` | `fail` or `skip` when the denylist is empty or missing |
-| `show-matches` | `false` | `true` prints the matching entry and the matched text. Private repositories only |
-| `commits` | empty (this event's commits) | A git range such as `main..HEAD` to check instead |
+| Input          | Default                      | Meaning                                                                          |
+| -------------- | ---------------------------- | -------------------------------------------------------------------------------- |
+| `denylist`     | empty                        | The terms (see above), usually `${{ secrets.DATA_LEAK_DENYLIST }}`               |
+| `if-empty`     | `fail`                       | `fail` or `skip` when the denylist is empty or missing                           |
+| `show-matches` | `false`                      | `true` prints the matching entry and the matched text. Private repositories only |
+| `commits`      | empty (this event's commits) | A git range such as `main..HEAD` to check instead                                |
 
 To make it a required check, add the job's name (`data-leak-check` above) to the branch's ruleset.
 
@@ -141,9 +141,9 @@ repos:
   - repo: https://github.com/kilotronic/data-leak-check
     rev: v1.1.0 # a dotted release tag, not the floating Action tag (v1)
     hooks:
-      - id: data-leak-check            # pre-commit: staged changes and the commit's identity
+      - id: data-leak-check # pre-commit: staged changes and the commit's identity
       - id: data-leak-check-commit-msg # commit-msg: the message
-      - id: data-leak-check-pre-push   # pre-push: the commits being pushed
+      - id: data-leak-check-pre-push # pre-push: the commits being pushed
 ```
 
 Then `prek install` (or `pre-commit install`) installs all three stages, as `default_install_hook_types` lists

@@ -133,7 +133,16 @@ jobs:
   ci:
     name: ci
     runs-on: ubuntu-latest
-    needs: [test, git-identity, secret-scan, lint, dogfood, dogfood-refuses, data-leak-check]
+    needs:
+      [
+        test,
+        git-identity,
+        secret-scan,
+        lint,
+        dogfood,
+        dogfood-refuses,
+        data-leak-check,
+      ]
     if: always()
     steps:
       - name: Verify required jobs succeeded
