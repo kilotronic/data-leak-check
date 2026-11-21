@@ -139,7 +139,7 @@ hook per stage:
 default_install_hook_types: [pre-commit, commit-msg, pre-push]
 repos:
   - repo: https://github.com/kilotronic/data-leak-check
-    rev: v1.1.0 # a dotted release tag, not the floating Action tag (v1)
+    rev: f1da8a7ce76bfaabd70ea815d9417fb691e95799 # frozen: v1.1.0 (a release commit, not the floating v1 tag)
     hooks:
       - id: data-leak-check # pre-commit: staged changes and the commit's identity
       - id: data-leak-check-commit-msg # commit-msg: the message
